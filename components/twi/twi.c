@@ -132,12 +132,16 @@ void twi_stop(TwiPort* twi){
 }
 
 static void twi_delay(unsigned char v){
+#if 0
+  vTaskDelay(1);
+#else
   unsigned int i;
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wunused-but-set-variable"
   unsigned int reg;
   for(i=0;i<v;i++) reg = REG_READ(GPIO_IN_REG);
 #pragma GCC diagnostic pop
+#endif
 }
 
 static bool twi_write_start(TwiPort* twi) {
@@ -164,12 +168,15 @@ static bool twi_write_stop(TwiPort* twi){
   return true;
 }
 
-bool do_log = false;
 static bool twi_write_bit(TwiPort* twi, bool bit) {
   unsigned int i = 0;
   SCL_LOW(twi);
-  if (bit) {SDA_HIGH(twi); if (do_log) {twi_delay(twi->dcount+1);}}
-  else {SDA_LOW(twi); if (do_log) {} }
+  if (bit) {
+    SDA_HIGH(twi);
+  }
+  else {
+    SDA_LOW(twi);
+  }
   twi_delay(twi->dcount+1);
   SCL_HIGH(twi);
   while (SCL_READ(twi) == 0 && (i++) < TWI_CLOCK_STRETCH);// Clock stretching (up to 100us)
@@ -191,18 +198,10 @@ static bool twi_read_bit(TwiPort* twi) {
 
 static bool twi_write_byte(TwiPort* twi, unsigned char byte) {
 
-  if (byte == 0x43) {
-    // printf("TWB %02x ", (uint32_t) byte);
-    // do_log = true;
-  }
   unsigned char bit;
   for (bit = 0; bit < 8; bit++) {
     twi_write_bit(twi, (byte & 0x80) != 0);
     byte <<= 1;
-  }
-  if (do_log) {
-    printf("\n");
-    do_log = false;
   }
   return !twi_read_bit(twi);//NACK/ACK
 }

@@ -127,12 +127,13 @@ void app_main()
 //    databuf = (char *) malloc(BUF_SIZE);
     initialise_wifi();
 
+#if 0
     altimeter = &Altimeter_inst;
     MPL3115A2_begin(altimeter, MPL3115A2_ADDRESS, 0, 16);
     setModeAltimeter(altimeter);
     setOversampleRate(altimeter, 1);
     enableEventFlags(altimeter);
-
+#endif
 
     http_server_t server;
     http_server_options_t http_options = HTTP_SERVER_OPTIONS_DEFAULT();
