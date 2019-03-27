@@ -9,6 +9,8 @@
 #ifndef __SCCB_H__
 #define __SCCB_H__
 #include <stdint.h>
+#include "twi.h"
+extern TwiPort* sccb_twi;
 int SCCB_Init(int pin_sda, int pin_scl);
 uint8_t SCCB_Probe();
 uint8_t SCCB_Read(uint8_t slv_addr, uint8_t reg);

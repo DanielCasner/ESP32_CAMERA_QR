@@ -46,7 +46,6 @@
 #include "camera.h"
 #include "camera_common.h"
 #include "xclk.h"
-#include "twi.h"
 #if CONFIG_OV2640_SUPPORT
 #include "ov2640.h"
 #endif
@@ -147,7 +146,7 @@ esp_err_t camera_probe(const camera_config_t* config,
 
 #if CONFIG_OV2640_SUPPORT
 	uint8_t buf[] = {0xff, 0x01};
-	twi_writeTo(0x30, buf, 2, true);
+	twi_writeTo(sccb_twi, 0x30, buf, 2, true);
 #endif
 
 	ESP_LOGD(TAG, "Searching for camera address");

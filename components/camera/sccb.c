@@ -9,17 +9,19 @@
 #include <stdbool.h>
 #include "wiring.h"
 #include "sccb.h"
-#include "twi.h"
 #include <stdio.h>
 
 #define SCCB_FREQ   (100000) // We don't need fast I2C. 100KHz is fine here.
-#define TIMEOUT     (1000) /* Can't be sure when I2C routines return. Interrupts
-while polling hardware may result in unknown delays. */
+#define TIMEOUT     (1000) // Can't be sure when I2C routines return. Interrupts
+                           // while polling hardware may result in unknown delays.
 
+static TwiPort sccb_twi_inst;
+TwiPort* sccb_twi;
 
 int SCCB_Init(int pin_sda, int pin_scl)
 {
-    twi_init(pin_sda, pin_scl);
+    sccb_twi = &sccb_twi_inst;
+    twi_init(sccb_twi,  pin_sda, pin_scl);
     return 0;
 }
 
@@ -29,7 +31,7 @@ uint8_t SCCB_Probe()
     uint8_t slv_addr = 0x00;
 
     for (uint8_t i=0; i<127; i++) {
-        if (twi_writeTo(i, &reg, 1, true) == 0) {
+        if (twi_writeTo(sccb_twi,  i, &reg, 1, true) == 0) {
             slv_addr = i;
             break;
         }
@@ -46,12 +48,12 @@ uint8_t SCCB_Read(uint8_t slv_addr, uint8_t reg)
     uint8_t data=0;
 
     __disable_irq();
-    int rc = twi_writeTo(slv_addr, &reg, 1, true);
+    int rc = twi_writeTo(sccb_twi,  slv_addr, &reg, 1, true);
     if (rc != 0) {
         data = 0xff;
     }
     else {
-        rc = twi_readFrom(slv_addr, &data, 1, true);
+        rc = twi_readFrom(sccb_twi,  slv_addr, &data, 1, true);
         if (rc != 0) {
             data=0xFF;
         }
@@ -69,7 +71,7 @@ uint8_t SCCB_Write(uint8_t slv_addr, uint8_t reg, uint8_t data)
     uint8_t buf[] = {reg, data};
 
     __disable_irq();
-    if(twi_writeTo(slv_addr, buf, 2, true) != 0) {
+    if(twi_writeTo(sccb_twi, slv_addr, buf, 2, true) != 0) {
         ret=0xFF;
     }
     __enable_irq();
