@@ -32,7 +32,6 @@
 #include "driver/gpio.h"
 #include "camera.h"
 #include "bitmap.h"
-#include "led.h"
 #include "qr_recoginize.h"
 static void handle_grayscale_pgm(http_context_t http_ctx, void* ctx);
 static void handle_rgb_bmp(http_context_t http_ctx, void* ctx);
@@ -121,6 +120,8 @@ void app_main()
     }
 //    databuf = (char *) malloc(BUF_SIZE);
     initialise_wifi();
+
+
 
     http_server_t server;
     http_server_options_t http_options = HTTP_SERVER_OPTIONS_DEFAULT();
@@ -215,8 +216,6 @@ static void handle_rgb_bmp(http_context_t http_ctx, void* ctx)
 
 static void handle_jpg(http_context_t http_ctx, void* ctx)
 {
-	if(get_light_state())
-		led_open();
     esp_err_t err = camera_run();
     if (err != ESP_OK) {
         ESP_LOGD(TAG, "Camera capture failed with error = %d", err);
@@ -227,7 +226,7 @@ static void handle_jpg(http_context_t http_ctx, void* ctx)
     http_response_set_header(http_ctx, "Content-disposition", "inline; filename=capture.jpg");
     write_frame(http_ctx);
     http_response_end(http_ctx);
-    led_close();
+
 }
 
 
@@ -277,8 +276,6 @@ static void handle_rgb_bmp_stream(http_context_t http_ctx, void* ctx)
 static void handle_jpg_stream(http_context_t http_ctx, void* ctx)
 {
     http_response_begin(http_ctx, 200, STREAM_CONTENT_TYPE, HTTP_RESPONSE_SIZE_UNKNOWN);
-    if(get_light_state())
-    		led_open();
     while (true) {
         esp_err_t err = camera_run();
         if (err != ESP_OK) {
@@ -300,28 +297,13 @@ static void handle_jpg_stream(http_context_t http_ctx, void* ctx)
         }
     }
     http_response_end(http_ctx);
-    led_close();
+
 }
 
 
 static esp_err_t event_handler(void *ctx, system_event_t *event)
 {
-    switch (event->event_id) {
-        case SYSTEM_EVENT_STA_START:
-            esp_wifi_connect();
-            break;
-        case SYSTEM_EVENT_STA_GOT_IP:
-            xEventGroupSetBits(s_wifi_event_group, CONNECTED_BIT);
-            s_ip_addr = event->event_info.got_ip.ip_info.ip;
-            break;
-        case SYSTEM_EVENT_STA_DISCONNECTED:
-            esp_wifi_connect();
-            xEventGroupClearBits(s_wifi_event_group, CONNECTED_BIT);
-            break;
-        default:
-            break;
-    }
-    return ESP_OK;
+  return ESP_OK;
 }
 
 static void initialise_wifi(void)
@@ -331,19 +313,20 @@ static void initialise_wifi(void)
     ESP_ERROR_CHECK( esp_event_loop_init(event_handler, NULL) );
     wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
     ESP_ERROR_CHECK( esp_wifi_init(&cfg) );
-//    ESP_ERROR_CHECK( esp_wifi_set_storage(WIFI_STORAGE_RAM) );
-    wifi_config_t wifi_config = {
-        .sta = {
-            .ssid = CONFIG_WIFI_SSID,
-            .password = CONFIG_WIFI_PASSWORD,
-        },
-    };
-    ESP_ERROR_CHECK( esp_wifi_set_mode(WIFI_MODE_STA) );
-    ESP_ERROR_CHECK( esp_wifi_set_config(WIFI_IF_STA, &wifi_config) );
-    ESP_ERROR_CHECK( esp_wifi_start() );
-    ESP_ERROR_CHECK( esp_wifi_set_ps(WIFI_PS_NONE) );
-    ESP_LOGI(TAG, "Connecting to \"%s\"", wifi_config.sta.ssid);
-    xEventGroupWaitBits(s_wifi_event_group, CONNECTED_BIT, false, true, portMAX_DELAY);
-    ESP_LOGI(TAG, "Connected");
+    ESP_ERROR_CHECK( esp_wifi_set_storage(WIFI_STORAGE_RAM) );
+  	ESP_ERROR_CHECK( esp_wifi_set_mode(WIFI_MODE_AP) );
+  	wifi_config_t apConfig = {
+  	   .ap = {
+  	      .ssid="sounding",
+  	      .ssid_len=0,
+  	      .password="",
+  	      .channel=0,
+  	      .authmode=WIFI_AUTH_OPEN,
+  	      .ssid_hidden=0,
+  	      .max_connection=4,
+  	      .beacon_interval=100
+  	   }
+  	};
+  	ESP_ERROR_CHECK( esp_wifi_set_config(WIFI_IF_AP, &apConfig) );
+  	ESP_ERROR_CHECK( esp_wifi_start() );
 }
-

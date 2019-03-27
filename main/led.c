@@ -20,13 +20,12 @@ static bool light_state = true;
 //}
 #define LEDC_LS_TIMER          LEDC_TIMER_1
 #define LEDC_LS_MODE           LEDC_LOW_SPEED_MODE
-#define LED_GPIO 4
+#define LED_GPIO 33
 #define LEDC_TEST_DUTY 			300
 	ledc_channel_config_t ledc_channel = { .channel = LEDC_CHANNEL_1, .duty = 0,
 				.gpio_num = LED_GPIO, .speed_mode = LEDC_LS_MODE, .timer_sel =
 						LEDC_LS_TIMER };
 void led_init() {
-	int ch;
 
 	/*
 	 * Prepare and set configuration of timers
