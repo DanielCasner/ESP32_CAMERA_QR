@@ -33,11 +33,14 @@
 #include "camera.h"
 #include "bitmap.h"
 #include "qr_recoginize.h"
+#include "MPL3115A2.h"
 static void handle_grayscale_pgm(http_context_t http_ctx, void* ctx);
 static void handle_rgb_bmp(http_context_t http_ctx, void* ctx);
 static void handle_rgb_bmp_stream(http_context_t http_ctx, void* ctx);
 static void handle_jpg(http_context_t http_ctx, void* ctx);
 static void handle_jpg_stream(http_context_t http_ctx, void* ctx);
+static void handle_flight(http_context_t http_ctx, void* ctx);
+static void handle_clear(http_context_t http_ctx, void* ctx);
 static esp_err_t event_handler(void *ctx, system_event_t *event);
 static void initialise_wifi(void);
 
@@ -52,6 +55,9 @@ EventGroupHandle_t s_wifi_event_group;
 static const int CONNECTED_BIT = BIT0;
 static ip4_addr_t s_ip_addr;
 static camera_pixelformat_t s_pixel_format;
+
+static MPL3115A2 Altimeter_inst;
+static MPL3115A2* altimeter;
 
 #define CAMERA_PIXEL_FORMAT CAMERA_PF_JPEG
 #define CAMERA_FRAME_SIZE CAMERA_FS_SVGA
@@ -121,6 +127,11 @@ void app_main()
 //    databuf = (char *) malloc(BUF_SIZE);
     initialise_wifi();
 
+    altimeter = &Altimeter_inst;
+    MPL3115A2_begin(altimeter, MPL3115A2_ADDRESS, 0, 16);
+    setModeAltimeter(altimeter);
+    setOversampleRate(altimeter, 1);
+    enableEventFlags(altimeter);
 
 
     http_server_t server;
@@ -143,6 +154,8 @@ void app_main()
         ESP_ERROR_CHECK( http_register_handler(server, "/jpg_stream", HTTP_GET, HTTP_HANDLE_RESPONSE, &handle_jpg_stream, NULL) );
         ESP_LOGI(TAG, "Open http://" IPSTR "/jpg_stream for multipart/x-mixed-replace stream of JPEGs", IP2STR(&s_ip_addr));
     }
+    ESP_ERROR_CHECK( http_register_handler(server, "/flight", HTTP_GET, HTTP_HANDLE_RESPONSE, &handle_flight, NULL) );
+    ESP_ERROR_CHECK( http_register_handler(server, "/clear",  HTTP_GET, HTTP_HANDLE_RESPONSE, &handle_clear,  NULL) );
     ESP_LOGI(TAG, "Free heap: %u", xPortGetFreeHeapSize());
     ESP_LOGI(TAG, "Camera demo ready");
 
@@ -156,6 +169,34 @@ static esp_err_t write_frame(http_context_t http_ctx)
             .data_is_persistent = true
     };
     return http_response_write(http_ctx, &fb_data);
+}
+
+static void handle_flight(http_context_t http_ctx, void* ctx)
+{
+  char* data;
+  int data_len;
+  int altitude = readAltitude(altimeter);
+
+  data_len = asprintf(&data, "Altitude = %d", altitude);
+  http_response_begin(http_ctx, 200, "text/plain", data_len);
+  const http_buffer_t buf = {
+          .data = data,
+          .data_is_persistent = false
+  };
+  http_response_write(http_ctx, &buf);
+  http_response_end(http_ctx);
+  free(data);
+}
+
+static void handle_clear(http_context_t http_ctx, void* ctx)
+{
+  http_response_begin(http_ctx, 200, "text/plain", 2);
+  const http_buffer_t buf = {
+          .data = "OK",
+          .data_is_persistent = false
+  };
+  http_response_write(http_ctx, &buf);
+  http_response_end(http_ctx);
 }
 
 static void handle_grayscale_pgm(http_context_t http_ctx, void* ctx)
