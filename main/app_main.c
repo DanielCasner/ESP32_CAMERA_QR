@@ -34,6 +34,7 @@
 #include "bitmap.h"
 #include "qr_recoginize.h"
 #include "MPL3115A2.h"
+#include "wiring.h"
 static void handle_grayscale_pgm(http_context_t http_ctx, void* ctx);
 static void handle_rgb_bmp(http_context_t http_ctx, void* ctx);
 static void handle_rgb_bmp_stream(http_context_t http_ctx, void* ctx);
@@ -58,9 +59,28 @@ static camera_pixelformat_t s_pixel_format;
 
 static MPL3115A2 Altimeter_inst;
 static MPL3115A2* altimeter;
+static int current_altitude;
+static int base_altitude;
+static int max_altitude;
 
 #define CAMERA_PIXEL_FORMAT CAMERA_PF_JPEG
 #define CAMERA_FRAME_SIZE CAMERA_FS_SVGA
+
+
+void altimeter_task(void *pdata)
+{
+  altimeter = &Altimeter_inst;
+  MPL3115A2_begin(altimeter, MPL3115A2_ADDRESS, 0, 16);
+  setModeAltimeter(altimeter);
+  setOversampleRate(altimeter, 5);
+  enableEventFlags(altimeter);
+
+  while (1) {
+    current_altitude = readAltitude(altimeter);
+    if (current_altitude > max_altitude) max_altitude = current_altitude;
+    vTaskDelay(1);
+  }
+}
 
 
 void app_main()
@@ -127,14 +147,6 @@ void app_main()
 //    databuf = (char *) malloc(BUF_SIZE);
     initialise_wifi();
 
-#if 0
-    altimeter = &Altimeter_inst;
-    MPL3115A2_begin(altimeter, MPL3115A2_ADDRESS, 0, 16);
-    setModeAltimeter(altimeter);
-    setOversampleRate(altimeter, 1);
-    enableEventFlags(altimeter);
-#endif
-
     http_server_t server;
     http_server_options_t http_options = HTTP_SERVER_OPTIONS_DEFAULT();
     ESP_ERROR_CHECK( http_server_start(&http_options, &server) );
@@ -160,6 +172,11 @@ void app_main()
     ESP_LOGI(TAG, "Free heap: %u", xPortGetFreeHeapSize());
     ESP_LOGI(TAG, "Camera demo ready");
 
+    xTaskCreate(altimeter_task, "altimeter_task", configMINIMAL_STACK_SIZE, NULL, 5, NULL);
+
+    pinMode(33, OUTPUT);
+    digitalWrite(33, 0);
+    ESP_LOGI(TAG, "App main complete");
 }
 
 static esp_err_t write_frame(http_context_t http_ctx)
@@ -176,9 +193,9 @@ static void handle_flight(http_context_t http_ctx, void* ctx)
 {
   char* data;
   int data_len;
-  int altitude = readAltitude(altimeter);
 
-  data_len = asprintf(&data, "Altitude = %d", altitude);
+  data_len = asprintf(&data, "base_altitude = %d\r\ncurrent_altitude = %d\r\nmax_altitude = %d\r\n",
+                      base_altitude, current_altitude, max_altitude-base_altitude);
   http_response_begin(http_ctx, 200, "text/plain", data_len);
   const http_buffer_t buf = {
           .data = data,
@@ -191,6 +208,8 @@ static void handle_flight(http_context_t http_ctx, void* ctx)
 
 static void handle_clear(http_context_t http_ctx, void* ctx)
 {
+  max_altitude = 0;
+  base_altitude = current_altitude;
   http_response_begin(http_ctx, 200, "text/plain", 2);
   const http_buffer_t buf = {
           .data = "OK",
